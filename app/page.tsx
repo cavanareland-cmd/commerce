@@ -1,21 +1,11 @@
-import { Carousel } from "components/carousel";
-import { ThreeItemGrid } from "components/grid/three-items";
-import Footer from "components/layout/footer";
-
-export const metadata = {
-  description:
-    "High-performance ecommerce store built with Next.js, Vercel, and Shopify.",
-  openGraph: {
-    type: "website",
-  },
-};
+import Hero from "@/components/hero";
+import Navbar from "@/components/navbar";
 
 export default function HomePage() {
   return (
-    <>
-      <ThreeItemGrid />
-      <Carousel />
-      <Footer />
-    </>
+    <div className="relative min-h-screen bg-[#1a0a1e] text-white antialiased">
+      <Navbar />
+      <Hero />
+    </div>
   );
 }

@@ -1,149 +1,215 @@
-import { GridTileImage } from "components/grid/tile";
-import Footer from "components/layout/footer";
-import { Gallery } from "components/product/gallery";
-import { ProductDescription } from "components/product/product-description";
-import { HIDDEN_PRODUCT_TAG } from "lib/constants";
-import { getProduct, getProductRecommendations } from "lib/shopify";
-import type { Image } from "lib/shopify/types";
+import { shopifyFetch } from "@/lib/shopify/shopify";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 
-export async function generateMetadata(props: {
-  params: Promise<{ handle: string }>;
-}): Promise<Metadata> {
-  const params = await props.params;
-  const product = await getProduct(params.handle);
+// --- 1. TYPE DEFINITIONS ---
+export type Product = {
+  title: string;
+  description: string;
+  featuredImage: {
+    url: string;
+    width: number;
+    height: number;
+    altText: string | null;
+  } | null;
+  price: string;
+  variants: {
+    id: string;
+    title: string;
+    availableForSale: boolean;
+  }[];
+};
 
-  if (!product) return notFound();
+// --- 2. DATA FETCHER (SHOPIFY API) ---
+async function getProduct(handle: string): Promise<Product | null> {
+  const query = `
+    query ProductByHandle($handle: String!) {
+      productByHandle(handle: $handle) {
+        title
+        description
+        images(first: 1) {
+          nodes {
+            url
+            width
+            height
+            altText
+          }
+        }
+        priceRange {
+          minVariantPrice {
+            amount
+            currencyCode
+          }
+        }
+        variants(first: 10) {
+          nodes {
+            id
+            title
+            availableForSale
+          }
+        }
+      }
+    }
+  `;
+  const variables = { handle };
+  const res = await shopifyFetch({ query, variables });
 
-  const { url, width, height, altText: alt } = product.featuredImage || {};
-  const indexable = !product.tags.includes(HIDDEN_PRODUCT_TAG);
+  const p = res?.data?.productByHandle;
+  if (!p) return null;
+
+  const image = p.images?.nodes?.[0] ?? null;
+
+  // Format the price directly to string (e.g., "IDR 120000.0")
+  const priceFormatted = new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: p.priceRange.minVariantPrice.currencyCode,
+    minimumFractionDigits: 0,
+  }).format(Number(p.priceRange.minVariantPrice.amount));
 
   return {
-    title: product.seo.title || product.title,
-    description: product.seo.description || product.description,
-    robots: {
-      index: indexable,
-      follow: indexable,
-      googleBot: {
-        index: indexable,
-        follow: indexable,
-      },
-    },
-    openGraph: url
+    title: p.title,
+    description: p.description,
+    featuredImage: image
       ? {
-          images: [
-            {
-              url,
-              width,
-              height,
-              alt,
-            },
-          ],
+          url: image.url,
+          width: image.width,
+          height: image.height,
+          altText: image.altText || null,
         }
       : null,
+    price: priceFormatted,
+    variants: p.variants?.nodes?.map((v: any) => ({
+      id: v.id,
+      title: v.title,
+      availableForSale: v.availableForSale,
+    })) || [],
   };
 }
 
+// --- 3. METADATA (SEO) ---
+export async function generateMetadata(props: {
+  params: Promise<{ slug: string }>; // Menggunakan 'slug' sesuai nama folder [slug]
+}): Promise<Metadata> {
+  const params = await props.params;
+  const product = await getProduct(params.slug);
+
+  if (!product) return {};
+
+  return {
+    title: `${product.title} | NIX`,
+    description: product.description,
+  };
+}
+
+// --- 4. MAIN PAGE COMPONENT ---
 export default async function ProductPage(props: {
-  params: Promise<{ handle: string }>;
+  params: Promise<{ slug: string }>;
 }) {
   const params = await props.params;
-  const product = await getProduct(params.handle);
+  const product = await getProduct(params.slug);
 
+  // Jika produk tidak ditemukan di Shopify, arahkan ke 404
   if (!product) return notFound();
 
-  const productJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: product.title,
-    description: product.description,
-    image: product.featuredImage.url,
-    offers: {
-      "@type": "AggregateOffer",
-      availability: product.availableForSale
-        ? "https://schema.org/InStock"
-        : "https://schema.org/OutOfStock",
-      priceCurrency: product.priceRange.minVariantPrice.currencyCode,
-      highPrice: product.priceRange.maxVariantPrice.amount,
-      lowPrice: product.priceRange.minVariantPrice.amount,
-    },
-  };
-
   return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd),
-        }}
-      />
-      <div className="mx-auto max-w-(--breakpoint-2xl) px-4">
-        <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-8 md:p-12 lg:flex-row lg:gap-8 dark:border-neutral-800 dark:bg-black">
-          <div className="h-full w-full basis-full lg:basis-4/6">
-            <Suspense
-              fallback={
-                <div className="relative aspect-square h-full max-h-[550px] w-full overflow-hidden" />
-              }
-            >
-              <Gallery
-                images={product.images.slice(0, 5).map((image: Image) => ({
-                  src: image.url,
-                  altText: image.altText,
-                }))}
-              />
-            </Suspense>
-          </div>
-
-          <div className="basis-full lg:basis-2/6">
-            <Suspense fallback={null}>
-              <ProductDescription product={product} />
-            </Suspense>
-          </div>
+    <div className="min-h-screen bg-[#0f0914] text-[#f4f0ec]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 min-h-screen">
+        
+        {/* KOLOM KIRI - IMAGE GALLERY */}
+        <div className="relative h-[60vh] lg:h-screen w-full bg-black/50">
+          {product.featuredImage ? (
+            <Image
+              src={product.featuredImage.url}
+              alt={product.featuredImage.altText || product.title}
+              fill
+              className="object-cover"
+              priority
+              sizes="(max-width: 1024px) 100vw, 50vw"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-neutral-900">
+              No Image
+            </div>
+          )}
         </div>
-        <RelatedProducts id={product.id} />
+
+        {/* KOLOM KANAN - PRODUCT DETAILS */}
+        <div className="flex flex-col justify-center p-8 lg:p-16 xl:p-24">
+          <span className="text-[#f5a3b7] text-sm uppercase tracking-[0.2em] mb-4">
+            Dominate,
+          </span>
+          
+          <h1 className="text-4xl lg:text-5xl font-serif uppercase tracking-widest mb-6 leading-tight">
+            {product.title}
+          </h1>
+
+          <div className="text-base lg:text-lg font-serif leading-relaxed mb-8 border-b border-white/10 pb-8 opacity-80">
+            {product.description}
+          </div>
+
+          <div className="text-2xl font-serif mb-10 tracking-wider">
+            {product.price}
+          </div>
+
+          {/* Scent Selector */}
+          {product.variants && product.variants.length > 0 && (
+            <div className="flex items-center gap-6 mb-8">
+              <span className="w-20 text-sm uppercase tracking-widest opacity-60">Scent</span>
+              <div className="flex flex-wrap gap-4">
+                {product.variants.map((variant, index) => (
+                  <button 
+                    key={variant.id} 
+                    className={`px-6 py-3 text-sm uppercase tracking-widest transition-all ${
+                      // Asumsi index 1 adalah Lollipop untuk state aktif (statis visual)
+                      index === 1 
+                        ? "bg-[#f5a3b7] text-[#0f0914] font-bold" 
+                        : "border border-white/20 hover:border-white/60"
+                    } ${!variant.availableForSale ? "opacity-30 cursor-not-allowed" : ""}`}
+                  >
+                    {variant.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Quantity Selector (Static Visuals) */}
+          <div className="flex items-center gap-6 mb-10">
+            <span className="w-20 text-sm uppercase tracking-widest opacity-60">Quantity</span>
+            <div className="flex items-center border border-white/20 px-4 py-2">
+              <button className="px-3 opacity-50 hover:opacity-100 transition-opacity">-</button>
+              <span className="px-6 font-serif">1</span>
+              <button className="px-3 opacity-50 hover:opacity-100 transition-opacity">+</button>
+            </div>
+          </div>
+
+          {/* Add to Cart Button */}
+          <button className="w-full bg-[#050308] text-white py-5 uppercase tracking-[0.2em] text-sm border border-white/10 mb-6 hover:bg-[#f5a3b7] hover:text-[#0f0914] transition-colors duration-300">
+            Add to Cart
+          </button>
+
+          <p className="text-center text-xs tracking-widest uppercase opacity-50 mb-12">
+            Free shipping on orders above $100
+          </p>
+
+          {/* Accordions (Static for Visuals) */}
+          <div className="border-t border-white/10">
+            <div className="flex justify-between items-center py-5 border-b border-white/10 cursor-pointer hover:opacity-70 transition-opacity">
+              <span className="uppercase tracking-widest text-sm">How to Use</span>
+              <span className="text-xl font-light">+</span>
+            </div>
+            <div className="flex justify-between items-center py-5 border-b border-white/10 cursor-pointer hover:opacity-70 transition-opacity">
+              <span className="uppercase tracking-widest text-sm">Scientific Formula</span>
+              <span className="text-xl font-light">-</span>
+            </div>
+            <div className="pt-4 pb-6 text-sm font-serif leading-relaxed opacity-70">
+              This advanced serum utilizes a potent blend of aphrodisiac extracts and vasodilator compounds to increase blood flow and heighten sensitivity.
+            </div>
+          </div>
+
+        </div>
       </div>
-      <Footer />
-    </>
-  );
-}
-
-async function RelatedProducts({ id }: { id: string }) {
-  const relatedProducts = await getProductRecommendations(id);
-
-  if (!relatedProducts.length) return null;
-
-  return (
-    <div className="py-8">
-      <h2 className="mb-4 text-2xl font-bold">Related Products</h2>
-      <ul className="flex w-full gap-4 overflow-x-auto pt-1">
-        {relatedProducts.map((product) => (
-          <li
-            key={product.handle}
-            className="aspect-square w-full flex-none min-[475px]:w-1/2 sm:w-1/3 md:w-1/4 lg:w-1/5"
-          >
-            <Link
-              className="relative h-full w-full"
-              href={`/product/${product.handle}`}
-              prefetch={true}
-            >
-              <GridTileImage
-                alt={product.title}
-                label={{
-                  title: product.title,
-                  amount: product.priceRange.maxVariantPrice.amount,
-                  currencyCode: product.priceRange.maxVariantPrice.currencyCode,
-                }}
-                src={product.featuredImage?.url}
-                fill
-                sizes="(min-width: 1024px) 20vw, (min-width: 768px) 25vw, (min-width: 640px) 33vw, (min-width: 475px) 50vw, 100vw"
-              />
-            </Link>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

@@ -1,3 +1,5 @@
+"use server";
+
 import {
   HIDDEN_PRODUCT_TAG,
   SHOPIFY_GRAPHQL_API_ENDPOINT,
@@ -105,7 +107,7 @@ export async function shopifyFetch<T>({
       status: result.status,
       body,
     };
-  } catch (e) {
+  } catch (e: any) {
     if (isShopifyError(e)) {
       throw {
         cause: e.cause?.toString() || "unknown",

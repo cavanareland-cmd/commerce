@@ -50,7 +50,7 @@ export default function Navbar() {
 
         <div className="ml-auto flex shrink-0 items-center gap-4 text-white md:gap-5">
           <Link
-            href="#"
+            href="/collection"
             className="hidden items-center gap-1.5 text-[10px] tracking-[0.2em] sm:flex"
           >
             <span className="text-base leading-none" aria-hidden>
@@ -65,7 +65,7 @@ export default function Navbar() {
           <Link href="/search" aria-label="Search" className="p-0.5">
             <MagnifyingGlassIcon className={iconClass} />
           </Link>
-          <Link href="#" aria-label="Shopping bag" className="p-0.5">
+          <Link href="/search" aria-label="Shopping bag" className="p-0.5">
             <ShoppingBagIcon className={iconClass} />
           </Link>
         </div>

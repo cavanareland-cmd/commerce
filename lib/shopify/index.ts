@@ -330,14 +330,29 @@ export async function getCollectionProducts({
     return [];
   }
 
-  const res = await shopifyFetch<ShopifyCollectionProductsOperation>({
-    query: getCollectionProductsQuery,
-    variables: {
-      handle: collection,
-      reverse,
-      sortKey: sortKey === "CREATED_AT" ? "CREATED" : sortKey,
-    },
-  });
+  let res: { status: number; body: ShopifyCollectionProductsOperation };
+  try {
+    res = await shopifyFetch<ShopifyCollectionProductsOperation>({
+      query: getCollectionProductsQuery,
+      variables: {
+        handle: collection,
+        reverse,
+        sortKey: sortKey === "CREATED_AT" ? "CREATED" : sortKey,
+      },
+    });
+  } catch (e: any) {
+    const code =
+      e?.error?.extensions?.code ||
+      e?.cause?.extensions?.code ||
+      e?.extensions?.code;
+    if (code === "UNAUTHORIZED") {
+      console.log(
+        `Skipping getCollectionProducts for '${collection}' - Shopify unauthorized (check Vercel env vars)`
+      );
+      return [];
+    }
+    throw e;
+  }
 
   if (!res.body.data.collection) {
     console.log(`No collection found for \`${collection}\``);
@@ -371,9 +386,36 @@ export async function getCollections(): Promise<Collection[]> {
     ];
   }
 
-  const res = await shopifyFetch<ShopifyCollectionsOperation>({
-    query: getCollectionsQuery,
-  });
+  let res: { status: number; body: ShopifyCollectionsOperation };
+  try {
+    res = await shopifyFetch<ShopifyCollectionsOperation>({
+      query: getCollectionsQuery,
+    });
+  } catch (e: any) {
+    const code =
+      e?.error?.extensions?.code ||
+      e?.cause?.extensions?.code ||
+      e?.extensions?.code;
+    if (code === "UNAUTHORIZED") {
+      console.log(
+        "Skipping getCollections - Shopify unauthorized (check Vercel env vars)"
+      );
+      return [
+        {
+          handle: "",
+          title: "All",
+          description: "All products",
+          seo: {
+            title: "All",
+            description: "All products",
+          },
+          path: "/search",
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+    }
+    throw e;
+  }
   const shopifyCollections = removeEdgesAndNodes(res.body?.data?.collections);
   const collections = [
     {
@@ -407,12 +449,29 @@ export async function getMenu(handle: string): Promise<Menu[]> {
     return [];
   }
 
-  const res = await shopifyFetch<ShopifyMenuOperation>({
-    query: getMenuQuery,
-    variables: {
-      handle,
-    },
-  });
+  let res: { status: number; body: ShopifyMenuOperation };
+  try {
+    res = await shopifyFetch<ShopifyMenuOperation>({
+      query: getMenuQuery,
+      variables: {
+        handle,
+      },
+    });
+  } catch (e: any) {
+    const code =
+      e?.error?.extensions?.code ||
+      e?.cause?.extensions?.code ||
+      e?.extensions?.code;
+
+    if (code === "UNAUTHORIZED") {
+      console.log(
+        `Skipping getMenu for '${handle}' - Shopify unauthorized (check Vercel env vars)`
+      );
+      return [];
+    }
+
+    throw e;
+  }
 
   return (
     res.body?.data?.menu?.items.map((item: { title: string; url: string }) => ({
@@ -452,12 +511,27 @@ export async function getProduct(handle: string): Promise<Product | undefined> {
     return undefined;
   }
 
-  const res = await shopifyFetch<ShopifyProductOperation>({
-    query: getProductQuery,
-    variables: {
-      handle,
-    },
-  });
+  let res: { status: number; body: ShopifyProductOperation };
+  try {
+    res = await shopifyFetch<ShopifyProductOperation>({
+      query: getProductQuery,
+      variables: {
+        handle,
+      },
+    });
+  } catch (e: any) {
+    const code =
+      e?.error?.extensions?.code ||
+      e?.cause?.extensions?.code ||
+      e?.extensions?.code;
+    if (code === "UNAUTHORIZED") {
+      console.log(
+        `Skipping getProduct for '${handle}' - Shopify unauthorized (check Vercel env vars)`
+      );
+      return undefined;
+    }
+    throw e;
+  }
 
   return reshapeProduct(res.body.data.product, false);
 }
@@ -492,14 +566,29 @@ export async function getProducts({
   cacheTag(TAGS.products);
   cacheLife("days");
 
-  const res = await shopifyFetch<ShopifyProductsOperation>({
-    query: getProductsQuery,
-    variables: {
-      query,
-      reverse,
-      sortKey,
-    },
-  });
+  let res: { status: number; body: ShopifyProductsOperation };
+  try {
+    res = await shopifyFetch<ShopifyProductsOperation>({
+      query: getProductsQuery,
+      variables: {
+        query,
+        reverse,
+        sortKey,
+      },
+    });
+  } catch (e: any) {
+    const code =
+      e?.error?.extensions?.code ||
+      e?.cause?.extensions?.code ||
+      e?.extensions?.code;
+    if (code === "UNAUTHORIZED") {
+      console.log(
+        "Skipping getProducts - Shopify unauthorized (check Vercel env vars)"
+      );
+      return [];
+    }
+    throw e;
+  }
 
   return reshapeProducts(removeEdgesAndNodes(res.body.data.products));
 }

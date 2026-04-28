@@ -14,7 +14,7 @@ const playfair = Playfair_Display({
 });
 
 export default async function HomePage() {
-  let products = [];
+  let products: Awaited<ReturnType<typeof getProducts>> = [];
   try {
     // Fetch all products from Shopify API, handle fetch errors gracefully
     products = await getProducts({});

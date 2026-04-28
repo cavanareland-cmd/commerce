@@ -1,8 +1,12 @@
 import Navbar from "@/components/navbar";
 import { getProducts } from "@/lib/shopify";
+import { Playfair_Display } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
-import { Playfair_Display } from "next/font/google";
+
+// Ensure usage of domain in env (for developer clarity)
+const SHOPIFY_STORE_DOMAIN =
+  process.env.SHOPIFY_STORE_DOMAIN || process.env.NEXT_PUBLIC_SHOPIFY_STORE_DOMAIN || "missing-domain";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -10,8 +14,17 @@ const playfair = Playfair_Display({
 });
 
 export default async function HomePage() {
-  // Fetch all products from Shopify API
-  const products = await getProducts({});
+  let products = [];
+  try {
+    // Fetch all products from Shopify API, handle fetch errors gracefully
+    products = await getProducts({});
+  } catch (error) {
+    console.error(
+      `Failed to fetch products from Shopify (${SHOPIFY_STORE_DOMAIN}):`,
+      error
+    );
+    products = [];
+  }
 
   return (
     <div className="relative min-h-screen bg-[#0f0914] text-[#f4f0ec] antialiased selection:bg-[#f5a3b7] selection:text-[#0f0914]">
